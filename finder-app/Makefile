@@ -4,10 +4,9 @@ CROSS_COMPILE ?=
 CFLAGS = -Wall -Wextra 
 
 # Source and object files
-DIR = finder-app
-SRC = $(DIR)/writer.c
+SRC = writer.c
 OBJ = $(SRC:.c=.o)
-TARGET = $(DIR)/writer
+TARGET = writer
 
 # Default target
 all: $(TARGET)
