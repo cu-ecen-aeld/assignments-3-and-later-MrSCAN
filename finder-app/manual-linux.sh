@@ -96,7 +96,7 @@ cp -v ${CROSS_COMPILE_DIR}/lib64/libm.so.6 ${OUTDIR}/rootfs/lib64/
 cp -v ${CROSS_COMPILE_DIR}/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib64/
 cp -v ${CROSS_COMPILE_DIR}/lib64/libc.so.6  ${OUTDIR}/rootfs/lib64/
 
-Make device nodes
+# Make device nodes
 sudo mknod -m 666 ${OUTDIR}/rootfs/dev/null c 1 3
 sudo mknod -m 666 ${OUTDIR}/rootfs/dev/console c 5 1
 
