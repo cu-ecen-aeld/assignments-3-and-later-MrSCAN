@@ -9,6 +9,7 @@ NUMFILES=10
 WRITESTR=AELD_IS_FUN
 WRITEDIR=/tmp/aeld-data
 username=$(cat conf/username.txt)
+OUTPUT_FILE=/tmp/assignment4-result.txt
 
 if [ $# -lt 3 ]
 then
@@ -54,10 +55,13 @@ fi
 
 for i in $( seq 1 $NUMFILES)
 do
-	./writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
+	writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
 done
 
-OUTPUTSTRING=$(./finder.sh "$WRITEDIR" "$WRITESTR")
+OUTPUTSTRING=$(finder.sh "$WRITEDIR" "$WRITESTR")
+
+# write the output of the finder command to /tmp/assignment4-result.txt
+echo "$OUTPUTSTRING" > "$OUTPUT_FILE"
 
 # remove temporary directories
 rm -rf /tmp/aeld-data
