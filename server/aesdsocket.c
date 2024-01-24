@@ -31,14 +31,15 @@ void cleanup(int server_socket)
     syslog(LOG_INFO, "Cleaning up and exiting");
 
     // Close server socket
-    if (shutdown(server_socket, SHUT_RDWR) == -1) {
-    perror("Error shutting down server socket");
-}
-
-    if (close(server_socket) == -1) {
-        perror("Error closing server socket");
+    if (shutdown(server_socket, SHUT_RDWR) == -1)
+    {
+        perror("Error shutting down server socket");
     }
 
+    if (close(server_socket) == -1)
+    {
+        perror("Error closing server socket");
+    }
 
     // Delete the data file
     unlink(DATA_FILE);
@@ -166,6 +167,13 @@ int main(int argc, char *argv[])
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
     server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    int reuse = 1;
+    if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+    {
+        perror("setsockopt(SO_REUSEADDR) failed");
+        cleanup(server_socket);
+    }
 
     if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
     {
