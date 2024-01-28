@@ -10,86 +10,11 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <pthread.h>
-
 
 #define PORT 9000
 #define DATA_FILE "/var/tmp/aesdsocketdata"
 
 volatile sig_atomic_t running = 1;
-
-struct ThreadNode
-{
-    pthread_t tid;           // Thread ID
-    struct ThreadNode *next; // Pointer to the next node
-};
-
-// Define a structure to pass necessary arguments to the thread
-struct ThreadArgs
-{
-    int client_socket;
-    int server_socket;
-};
-
-// Define a mutex
-pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
-struct ThreadNode *head = NULL; // Global variable to store the head of thread linked list
-
-
-// Function to add a new thread to the linked list
-void add_thread(pthread_t tid)
-{
-    struct ThreadNode *new_node = (struct ThreadNode *)malloc(sizeof(struct ThreadNode));
-    if (new_node == NULL)
-    {
-        perror("Error creating thread node");
-        exit(EXIT_FAILURE);
-    }
-    new_node->tid = tid;
-    new_node->next = head;
-    head = new_node;
-}
-
-// Function to remove a thread from the linked list
-void remove_thread(pthread_t tid)
-{
-    struct ThreadNode *prev = NULL;
-    struct ThreadNode *current = head;
-
-    while (current != NULL)
-    {
-        if (pthread_equal(current->tid, tid))
-        {
-            if (prev == NULL)
-            {
-                head = current->next;
-            }
-            else
-            {
-                prev->next = current->next;
-            }
-            free(current);
-            break;
-        }
-        prev = current;
-        current = current->next;
-    }
-}
-
-// Function to join completed threads
-void join_threads()
-{
-    struct ThreadNode *current = head;
-    while (current != NULL)
-    {
-        pthread_join(current->tid, NULL);
-        struct ThreadNode *temp = current;
-        current = current->next;
-        free(temp);
-    }
-    head = NULL; // Reset the head of the list after joining all threads
-}
-
 
 void signal_handler(int signo)
 {
@@ -154,11 +79,6 @@ void daemonize()
     close(STDERR_FILENO);
 }
 
-
-
-
-
-
 void handle_client(int client_socket, int server_socket)
 {
     struct sockaddr_in client_addr;
@@ -173,8 +93,6 @@ void handle_client(int client_socket, int server_socket)
 
     char buffer[1024];
     ssize_t bytes_received;
-
-    pthread_mutex_lock(&file_mutex);
 
     while ((bytes_received = recv(client_socket, buffer, sizeof(buffer), 0)) > 0)
     {
@@ -206,8 +124,6 @@ void handle_client(int client_socket, int server_socket)
             }
 
             close(file_fd);
-            pthread_mutex_unlock(&file_mutex);
-
             break;
         }
     }
@@ -215,57 +131,6 @@ void handle_client(int client_socket, int server_socket)
     syslog(LOG_INFO, "Closed connection from %s", inet_ntoa(client_addr.sin_addr));
     close(client_socket);
 }
-
-
-
-void *client_thread(void *args)
-{
-    struct ThreadArgs *thread_args = (struct ThreadArgs *)args;
-    int client_socket = thread_args->client_socket;
-    int server_socket = thread_args->server_socket;
-
-    // Handle the client as before
-    handle_client(client_socket, server_socket);
-
-    // Free allocated memory and exit the thread
-    remove_thread(pthread_self()); // Remove the completed thread from the linked list
-    free(thread_args);
-    pthread_exit(NULL);
-}
-
-// Function to append timestamp every 10 seconds
-void *timestamp_thread(void *args)
-{
-    struct ThreadArgs *thread_args = (struct ThreadArgs *)args;
-    int server_socket = thread_args->server_socket;
-    while (running)
-    {
-        // Get current time
-        time_t now = time(NULL);
-        struct tm *tm_info = localtime(&now);
-        char timestamp[64];
-        strftime(timestamp, sizeof(timestamp), "timestamp:%a, %d %b %Y %T %z\n", tm_info);
-
-        // Append timestamp to the file
-        pthread_mutex_lock(&file_mutex);
-        int data_fd = open(DATA_FILE, O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
-        if (data_fd == -1)
-        {
-            perror("Error opening data file");
-            cleanup(server_socket);
-        }
-        write(data_fd, timestamp, strlen(timestamp));
-        close(data_fd);
-        pthread_mutex_unlock(&file_mutex);
-
-        // Sleep for 10 seconds
-        sleep(10);
-    }
-    remove_thread(pthread_self()); // Remove the completed thread from the linked list
-    free(thread_args);
-    pthread_exit(NULL);
-}
-
 
 int main(int argc, char *argv[])
 {
@@ -326,18 +191,6 @@ int main(int argc, char *argv[])
     {
         daemonize();
     }
-
-    struct ThreadArgs *thread_data_timer = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs));
-        thread_data_timer->server_socket = server_socket;
-
-    pthread_t timestamp_tid;
-    if (pthread_create(&timestamp_tid, NULL, timestamp_thread, (void *)thread_data_timer) != 0)
-    {
-        perror("Error creating timestamp thread");
-        // Handle error
-    }
-    add_thread(timestamp_tid); // Add the new thread to the linked list
-
     while (running)
     {
         int client_socket = accept(server_socket, NULL, NULL);
@@ -347,23 +200,8 @@ int main(int argc, char *argv[])
             cleanup(server_socket);
         }
 
-        // handle_client(client_socket, server_socket);
-
-        // Create a new thread to handle the connection
-        pthread_t tid;
-        struct ThreadArgs *thread_data = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs));
-        thread_data->client_socket = client_socket;
-        thread_data->server_socket = server_socket;
-        if (pthread_create(&tid, NULL, client_thread, (void *)thread_data) != 0)
-        {
-            perror("Error creating thread");
-            close(client_socket);
-            continue;
-        }
-        add_thread(tid); // Add the new thread to the linked list
+        handle_client(client_socket, server_socket);
     }
-
-    join_threads(); // Join all completed threads before exiting
 
     cleanup(server_socket); // Cleanup if the loop exits
 
