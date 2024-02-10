@@ -11,8 +11,8 @@
 ### END INIT INFO
 
 # Change the following variables according to your setup
-AEDS_SOCKET_DIR="/path/to/your/assignment3/server"
-AEDS_SOCKET_EXEC="/path/to/your/assignment3/server/aesdsocket"
+AEDS_SOCKET_DIR="."
+AEDS_SOCKET_EXEC="./aesdsocket"
 
 # Load the functions from /etc/init.d/functions (if available)
 [ -r /etc/init.d/functions ] && . /etc/init.d/functions

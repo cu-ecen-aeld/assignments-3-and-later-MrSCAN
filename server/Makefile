@@ -1,6 +1,7 @@
-# CC = aarch64-linux-gnu-gcc
-CFLAGS = -Wall -Wextra 
-LDFLAGS = -lpthread
+# CC ?= aarch64-linux-gnu-gcc
+CC ?= gcc
+CFLAGS ?= -Wall -Wextra 
+LDFLAGS ?= -lpthread
 
 all: aesdsocket
 
