@@ -14,7 +14,12 @@
 
 
 #define PORT 9000
+
+#ifdef USE_AESD_CHAR_DEVICE
+#define DATA_FILE "/dev/aesdchar"
+#else
 #define DATA_FILE "/var/tmp/aesdsocketdata"
+#endif
 
 volatile sig_atomic_t running = 1;
 
@@ -116,8 +121,10 @@ void cleanup(int server_socket)
         perror("Error closing server socket");
     }
 
+    #ifndef USE_AESD_CHAR_DEVICE
     // Delete the data file
     unlink(DATA_FILE);
+    #endif
 
     // Close syslog
     closelog();
@@ -330,6 +337,7 @@ int main(int argc, char *argv[])
     struct ThreadArgs *thread_data_timer = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs));
         thread_data_timer->server_socket = server_socket;
 
+    #ifndef USE_AESD_CHAR_DEVICE
     pthread_t timestamp_tid;
     if (pthread_create(&timestamp_tid, NULL, timestamp_thread, (void *)thread_data_timer) != 0)
     {
@@ -337,6 +345,7 @@ int main(int argc, char *argv[])
         // Handle error
     }
     add_thread(timestamp_tid); // Add the new thread to the linked list
+    #endif
 
     while (running)
     {
