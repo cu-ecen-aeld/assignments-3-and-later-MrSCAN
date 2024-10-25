@@ -254,7 +254,7 @@ int aesd_init_module(void)
     }
 
     // Create a device class
-    aesdchar_class = class_create("aesdchar");
+    aesdchar_class = class_create(THIS_MODULE, "aesdchar");
     if (IS_ERR(aesdchar_class))
     {
         cdev_del(&aesd_device.cdev);
@@ -278,6 +278,7 @@ int aesd_init_module(void)
 void aesd_cleanup_module(void)
 {
     dev_t devno = MKDEV(aesd_major, aesd_minor);
+    size_t i = 0;
 
     PDEBUG("Cleaning up AESD module\n");
 
@@ -291,7 +292,7 @@ void aesd_cleanup_module(void)
     cdev_del(&aesd_device.cdev);
 
     // Free the allocated memory buffers
-    for (size_t i = 0; i < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; i++)
+    for (i = 0; i < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; i++)
     {
         if (aesd_device.buffer.entry[i].buffptr)
         {

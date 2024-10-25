@@ -31,16 +31,18 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
                                                                           size_t char_offset,
                                                                           size_t *entry_offset_byte_rtn)
 {
+    size_t cumulative_offset = 0;
+    size_t out_offs = buffer->out_offs;
+    size_t i = 0;
+
     if (buffer == NULL || entry_offset_byte_rtn == NULL)
     {
         // Invalid char_offset, buffer, or entry_offset_byte_rtn
         return NULL;
     }
 
-    size_t cumulative_offset = 0;
-    size_t out_offs = buffer->out_offs;
     // Iterate through the circular buffer to find the corresponding entry
-    for (size_t i = 0; i < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; i++)
+    for (i = 0; i < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; i++)
     {
         size_t value = (i + out_offs) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
         // Check if the cumulative offset exceeds the target char_offset
