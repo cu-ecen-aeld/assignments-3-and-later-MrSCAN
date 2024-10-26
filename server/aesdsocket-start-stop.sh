@@ -12,14 +12,14 @@
 
 # Change the following variables according to your setup
 AEDS_SOCKET_DIR="."
-AEDS_SOCKET_EXEC="./aesdsocket"
+AEDS_SOCKET_EXEC="/usr/bin/aesdsocket"
 
 # Load the functions from /etc/init.d/functions (if available)
 [ -r /etc/init.d/functions ] && . /etc/init.d/functions
 
 start() {
     echo -n "Starting aesdsocket: "
-    start-stop-daemon --start --quiet --exec aesdsocket -- -d
+    start-stop-daemon --start --quiet --exec /usr/bin/aesdsocket -- -d
     echo "aesdsocket started."
 }
 
