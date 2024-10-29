@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
-
+#include "../aesd-char-driver/aesd_ioctl.h"
 
 #define PORT 9000
 
@@ -39,7 +39,6 @@ struct ThreadArgs
 // Define a mutex
 pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct ThreadNode *head = NULL; // Global variable to store the head of thread linked list
-
 
 // Function to add a new thread to the linked list
 void add_thread(pthread_t tid)
@@ -95,7 +94,6 @@ void join_threads()
     head = NULL; // Reset the head of the list after joining all threads
 }
 
-
 void signal_handler(int signo)
 {
     if (signo == SIGINT || signo == SIGTERM)
@@ -121,10 +119,10 @@ void cleanup(int server_socket)
         perror("Error closing server socket");
     }
 
-    #ifndef USE_AESD_CHAR_DEVICE
+#ifndef USE_AESD_CHAR_DEVICE
     // Delete the data file
     unlink(DATA_FILE);
-    #endif
+#endif
 
     // Close syslog
     closelog();
@@ -161,11 +159,6 @@ void daemonize()
     close(STDERR_FILENO);
 }
 
-
-
-
-
-
 void handle_client(int client_socket, int server_socket)
 {
     struct sockaddr_in client_addr;
@@ -185,34 +178,68 @@ void handle_client(int client_socket, int server_socket)
 
     while ((bytes_received = recv(client_socket, buffer, sizeof(buffer), 0)) > 0)
     {
-        int data_fd = open(DATA_FILE, O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+        short seekset = 0;
+        int data_fd = open(DATA_FILE, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
         if (data_fd == -1)
         {
             perror("Error opening data file");
+            pthread_mutex_unlock(&file_mutex);
             cleanup(server_socket);
         }
 
-        write(data_fd, buffer, bytes_received);
-        close(data_fd);
+        if (strncmp(buffer, "AESDCHAR_IOCSEEKTO:", 19) == 0)
+        {
+            unsigned int write_cmd, write_cmd_offset;
+            if (sscanf(buffer + 19, "%u,%u", &write_cmd, &write_cmd_offset) == 2)
+            {
+                struct aesd_seekto seekto;
+                seekto.write_cmd = write_cmd;
+                seekto.write_cmd_offset = write_cmd_offset;
+
+                // Perform the ioctl seek command
+                ssize_t seek_val = ioctl(data_fd, AESDCHAR_IOCSEEKTO, &seekto);
+                if (seek_val == -1)
+                {
+                    perror("ioctl error");
+                    pthread_mutex_unlock(&file_mutex);
+                    cleanup(server_socket);
+                }
+                seekset = 1;
+            }
+            else
+            {
+                pthread_mutex_unlock(&file_mutex);
+                perror("invalid ioctl command");
+                cleanup(server_socket);
+            }
+        }
+        else
+        {
+            write(data_fd, buffer, bytes_received);
+        }
 
         if (memchr(buffer, '\n', bytes_received) != NULL)
         {
-            int file_fd = open(DATA_FILE, O_RDONLY);
-            if (file_fd == -1)
+            if (seekset == 0)
             {
-                perror("Error opening data file for reading");
-                cleanup(server_socket);
+                if (lseek(data_fd, 0, SEEK_SET) == -1)
+                {
+                    perror("Error seeking to start of file");
+                    close(data_fd);
+                    pthread_mutex_unlock(&file_mutex);
+                    cleanup(server_socket);
+                }
             }
-
             char file_buffer[1024];
             ssize_t bytes_read;
 
-            while ((bytes_read = read(file_fd, file_buffer, sizeof(file_buffer))) > 0)
+            while ((bytes_read = read(data_fd, file_buffer, sizeof(file_buffer))) > 0)
             {
                 send(client_socket, file_buffer, bytes_read, 0);
             }
 
-            close(file_fd);
+            close(data_fd);
+
             pthread_mutex_unlock(&file_mutex);
 
             break;
@@ -222,8 +249,6 @@ void handle_client(int client_socket, int server_socket)
     syslog(LOG_INFO, "Closed connection from %s", inet_ntoa(client_addr.sin_addr));
     close(client_socket);
 }
-
-
 
 void *client_thread(void *args)
 {
@@ -272,7 +297,6 @@ void *timestamp_thread(void *args)
     free(thread_args);
     pthread_exit(NULL);
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -335,9 +359,9 @@ int main(int argc, char *argv[])
     }
 
     struct ThreadArgs *thread_data_timer = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs));
-        thread_data_timer->server_socket = server_socket;
+    thread_data_timer->server_socket = server_socket;
 
-    #ifndef USE_AESD_CHAR_DEVICE
+#ifndef USE_AESD_CHAR_DEVICE
     pthread_t timestamp_tid;
     if (pthread_create(&timestamp_tid, NULL, timestamp_thread, (void *)thread_data_timer) != 0)
     {
@@ -345,7 +369,7 @@ int main(int argc, char *argv[])
         // Handle error
     }
     add_thread(timestamp_tid); // Add the new thread to the linked list
-    #endif
+#endif
 
     while (running)
     {
