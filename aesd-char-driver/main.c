@@ -344,7 +344,7 @@ int aesd_init_module(void)
     }
 
     // Create a device class
-    aesdchar_class = class_create("aesdchar");
+    aesdchar_class = class_create(THIS_MODULE, "aesdchar");
     if (IS_ERR(aesdchar_class))
     {
         cdev_del(&aesd_device.cdev);
